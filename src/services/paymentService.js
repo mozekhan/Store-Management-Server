@@ -184,11 +184,12 @@
 // ============================================================
 // services/paymentService.js - Unified payment service
 // ============================================================
-
+const mongoose = require("mongoose");
 const Payment = require("../models/Payment");
 const Transaction = require("../models/Transaction");
 const BaseService = require("./baseService");
 const { AppError } = require("../middleware/errorHandler");
+
 
 class PaymentService extends BaseService {
   /**
@@ -394,46 +395,179 @@ class PaymentService extends BaseService {
       .sort({ processedAt: -1 });
   }
 
-  /**
-   * Get payment statistics
-   */
+// async function getPaymentStats(storeId, startDate, endDate) {
   async getPaymentStats(storeId, startDate, endDate) {
-    const query = { storeId };
-    if (startDate || endDate) {
-      query.processedAt = {};
-      if (startDate) query.processedAt.$gte = new Date(startDate);
-      if (endDate) query.processedAt.$lte = new Date(endDate);
+  try {
+    if (!storeId) {
+      throw new Error("storeId is required");
     }
 
-    const [byMethod, totals] = await Promise.all([
+    // Ensure ObjectId
+    const objectStoreId =
+      storeId instanceof mongoose.Types.ObjectId
+        ? storeId
+        : new mongoose.Types.ObjectId(storeId);
+
+    // Build completed payments query
+    const matchQuery = {
+      storeId: objectStoreId,
+      status: "COMPLETED",
+    };
+
+    if (startDate || endDate) {
+      matchQuery.processedAt = {};
+
+      if (startDate) {
+        matchQuery.processedAt.$gte = new Date(startDate);
+      }
+
+      if (endDate) {
+        matchQuery.processedAt.$lte = new Date(endDate);
+      }
+    }
+
+
+    // Debug
+    const payments = await Payment.find(matchQuery).lean();
+
+    console.log(`Payments Found: ${payments.length}`);
+
+    if (payments.length) {
+      console.log("First Payment:", payments[0]);
+    }
+
+    const [byMethod, totals, refunds] = await Promise.all([
       Payment.aggregate([
-        { $match: query },
+        {
+          $match: matchQuery,
+        },
         {
           $group: {
             _id: "$method",
-            totalAmount: { $sum: "$amount" },
-            count: { $sum: 1 },
-            averageAmount: { $avg: "$amount" },
+            totalAmount: {
+              $sum: "$amount",
+            },
+            totalCount: {
+              $sum: 1,
+            },
+            averageAmount: {
+              $avg: "$amount",
+            },
+            minAmount: {
+              $min: "$amount",
+            },
+            maxAmount: {
+              $max: "$amount",
+            },
+          },
+        },
+        {
+          $sort: {
+            totalAmount: -1,
           },
         },
       ]),
+
       Payment.aggregate([
-        { $match: query },
+        {
+          $match: matchQuery,
+        },
         {
           $group: {
             _id: null,
-            totalAmount: { $sum: "$amount" },
-            totalCount: { $sum: 1 },
+            totalAmount: {
+              $sum: "$amount",
+            },
+            totalCount: {
+              $sum: 1,
+            },
+            averageAmount: {
+              $avg: "$amount",
+            },
+          },
+        },
+      ]),
+
+      Payment.aggregate([
+        {
+          $match: {
+            storeId: objectStoreId,
+            status: "REFUNDED",
+          },
+        },
+        {
+          $group: {
+            _id: null,
+            totalRefunded: {
+              $sum: "$amount",
+            },
+            refundCount: {
+              $sum: 1,
+            },
           },
         },
       ]),
     ]);
 
+
+    const totalsData = totals[0] || {
+      totalAmount: 0,
+      totalCount: 0,
+      averageAmount: 0,
+    };
+
+    const refundData = refunds[0] || {
+      totalRefunded: 0,
+      refundCount: 0,
+    };
+
     return {
       byMethod,
-      totals: totals[0] || { totalAmount: 0, totalCount: 0 },
+
+      totals: {
+        totalAmount: totalsData.totalAmount,
+        totalCount: totalsData.totalCount,
+        averageAmount: totalsData.averageAmount,
+      },
+
+      refunds: {
+        totalRefunded: refundData.totalRefunded,
+        refundCount: refundData.refundCount,
+      },
+
+      summary: {
+        totalRevenue: totalsData.totalAmount,
+        totalTransactions: totalsData.totalCount,
+        averageTransactionValue: totalsData.averageAmount,
+        totalRefunded: refundData.totalRefunded,
+        refundCount: refundData.refundCount,
+      },
+    };
+  } catch (error) {
+    console.error("Error getting payment stats:", error);
+
+    return {
+      byMethod: [],
+      totals: {
+        totalAmount: 0,
+        totalCount: 0,
+        averageAmount: 0,
+      },
+      refunds: {
+        totalRefunded: 0,
+        refundCount: 0,
+      },
+      summary: {
+        totalRevenue: 0,
+        totalTransactions: 0,
+        averageTransactionValue: 0,
+        totalRefunded: 0,
+        refundCount: 0,
+      },
     };
   }
+}
+
 }
 
 module.exports = new PaymentService();

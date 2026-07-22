@@ -8,17 +8,17 @@ router.use(protect);
 
 router.get(
   "/categories",
-  rbacMiddleware(["inventory:read"]),
+  rbacMiddleware(["product:read", ]),
   productController.getProductCategories,
 );
 router.get(
   "/",
-  rbacMiddleware(["inventory:read"]),
+  rbacMiddleware(["product:read"]),
   productController.getProducts,
 );
 router.get(
   "/:id",
-  rbacMiddleware(["inventory:read"]),
+  rbacMiddleware(["product:read"]),
   productController.getProductById,
 );
 router.post(

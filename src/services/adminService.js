@@ -1,7 +1,3 @@
-// ============================================================
-// services/adminService.js - Admin management service
-// ============================================================
-
 const User = require('../models/User');
 const Store = require('../models/Store');
 const Transaction = require('../models/Transaction');

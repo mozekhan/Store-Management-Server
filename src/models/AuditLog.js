@@ -14,12 +14,12 @@ const auditLogSchema = new mongoose.Schema({
   actorRole: String,
   action: {
     type: String,
-    enum: ['CREATE', 'UPDATE', 'DELETE', 'LOGIN', 'LOGOUT', 'PRINT', 'SCAN', 'APPROVE', 'REJECT'],
+    enum: ['CREATE', 'READ', 'UPDATE', 'DELETE', 'LOGIN', 'LOGOUT', 'PRINT', 'SCAN', 'APPROVE', 'REJECT'],
     required: true
   },
   resourceType: {
     type: String,
-    enum: ['Transaction', 'Product', 'User', 'Payment', 'Inventory', 'Store'],
+    enum: ['Transaction', 'Product', 'User', 'Payment', 'Inventory', 'Store', 'Report'],
     required: true
   },
   resourceId: {

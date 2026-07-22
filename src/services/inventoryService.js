@@ -1,10 +1,9 @@
-
-const Inventory = require('../models/Inventory');
-const Product = require('../models/Product');
-const BaseService = require('./baseService');
-const NotificationService = require('./notificationService');
-const { AppError } = require('../middleware/errorHandler');
-const AuditLog = require('../models/AuditLog');
+const Inventory = require("../models/Inventory");
+const Product = require("../models/Product");
+const BaseService = require("./baseService");
+const NotificationService = require("./notificationService");
+const { AppError } = require("../middleware/errorHandler");
+const AuditLog = require("../models/AuditLog");
 
 class InventoryService extends BaseService {
   /**
@@ -13,12 +12,15 @@ class InventoryService extends BaseService {
   async checkStock(productId, storeId, quantity) {
     const inventory = await Inventory.findOne({ productId, storeId });
     if (!inventory) {
-      throw new AppError('Product not found in inventory', 404);
+      throw new AppError("Product not found in inventory", 404);
     }
 
     const available = inventory.quantity - inventory.reservedQuantity;
     if (available < quantity) {
-      throw new AppError(`Insufficient stock. Available: ${available}, Requested: ${quantity}`, 400);
+      throw new AppError(
+        `Insufficient stock. Available: ${available}, Requested: ${quantity}`,
+        400,
+      );
     }
 
     return { available, inventory, sufficient: available >= quantity };
@@ -30,12 +32,15 @@ class InventoryService extends BaseService {
   async reserveStock(productId, storeId, quantity) {
     const inventory = await Inventory.findOne({ productId, storeId });
     if (!inventory) {
-      throw new AppError('Product not found in inventory', 404);
+      throw new AppError("Product not found in inventory", 404);
     }
 
     const available = inventory.quantity - inventory.reservedQuantity;
     if (available < quantity) {
-      throw new AppError(`Insufficient stock to reserve. Available: ${available}`, 400);
+      throw new AppError(
+        `Insufficient stock to reserve. Available: ${available}`,
+        400,
+      );
     }
 
     inventory.reservedQuantity += quantity;
@@ -50,11 +55,14 @@ class InventoryService extends BaseService {
   async releaseStock(productId, storeId, quantity) {
     const inventory = await Inventory.findOne({ productId, storeId });
     if (!inventory) {
-      throw new AppError('Product not found in inventory', 404);
+      throw new AppError("Product not found in inventory", 404);
     }
 
     if (inventory.quantity < quantity) {
-      throw new AppError(`Insufficient stock to release. Available: ${inventory.quantity}`, 400);
+      throw new AppError(
+        `Insufficient stock to release. Available: ${inventory.quantity}`,
+        400,
+      );
     }
 
     inventory.quantity -= quantity;
@@ -73,21 +81,34 @@ class InventoryService extends BaseService {
   /**
    * Adjust stock (positive or negative)
    */
-  async adjustStock(productId, storeId, quantity, reason, userId, ip, userAgent) {
+  async adjustStock(
+    productId,
+    storeId,
+    quantity,
+    reason,
+    userId,
+    ip,
+    userAgent,
+  ) {
     if (quantity === 0) {
-      throw new AppError('Adjustment quantity cannot be zero', 400);
+      throw new AppError("Adjustment quantity cannot be zero", 400);
     }
 
-    const inventory = await Inventory.findOne({ productId, storeId }).populate('productId');
+    const inventory = await Inventory.findOne({ productId, storeId }).populate(
+      "productId",
+    );
     if (!inventory) {
-      throw new AppError('Inventory not found', 404);
+      throw new AppError("Inventory not found", 404);
     }
 
     const beforeQuantity = inventory.quantity;
     const newQuantity = inventory.quantity + quantity;
 
     if (newQuantity < 0) {
-      throw new AppError(`Insufficient stock. Current quantity: ${inventory.quantity}`, 400);
+      throw new AppError(
+        `Insufficient stock. Current quantity: ${inventory.quantity}`,
+        400,
+      );
     }
 
     inventory.quantity = newQuantity;
@@ -97,8 +118,8 @@ class InventoryService extends BaseService {
     await this.auditLog(
       userId,
       null,
-      'UPDATE',
-      'Inventory',
+      "UPDATE",
+      "Inventory",
       inventory._id,
       storeId,
       {
@@ -110,14 +131,17 @@ class InventoryService extends BaseService {
           reason,
           adjustment: quantity,
           productName: inventory.productId?.name,
-          productSku: inventory.productId?.sku
-        }
+          productSku: inventory.productId?.sku,
+        },
       },
-      quantity < 0 ? 'WARNING' : 'INFO'
+      quantity < 0 ? "WARNING" : "INFO",
     );
 
     // Check low stock
-    if (inventory.quantity <= inventory.reorderPoint && inventory.quantity > 0) {
+    if (
+      inventory.quantity <= inventory.reorderPoint &&
+      inventory.quantity > 0
+    ) {
       const product = await Product.findById(productId);
       await NotificationService.sendLowStockNotification(product, inventory);
     }
@@ -127,7 +151,7 @@ class InventoryService extends BaseService {
       adjustment: quantity,
       reason,
       previousQuantity: beforeQuantity,
-      newQuantity: inventory.quantity
+      newQuantity: inventory.quantity,
     };
   }
 
@@ -136,7 +160,7 @@ class InventoryService extends BaseService {
    */
   async bulkAdjustStock(adjustments, userId, storeId, ip, userAgent) {
     if (!Array.isArray(adjustments) || adjustments.length === 0) {
-      throw new AppError('Adjustments array is required', 400);
+      throw new AppError("Adjustments array is required", 400);
     }
 
     const results = [];
@@ -147,7 +171,7 @@ class InventoryService extends BaseService {
         const { productId, quantity, reason } = adjustment;
 
         if (!reason) {
-          errors.push({ productId, error: 'Reason is required' });
+          errors.push({ productId, error: "Reason is required" });
           continue;
         }
 
@@ -158,22 +182,27 @@ class InventoryService extends BaseService {
           reason,
           userId,
           ip,
-          userAgent
+          userAgent,
         );
 
         results.push({
           productId,
-          productName: result.inventory.productId?.name || 'Unknown',
+          productName: result.inventory.productId?.name || "Unknown",
           previousQuantity: result.previousQuantity,
           newQuantity: result.newQuantity,
-          adjustment: result.adjustment
+          adjustment: result.adjustment,
         });
       } catch (error) {
         errors.push({ productId: adjustment.productId, error: error.message });
       }
     }
 
-    return { results, errors, totalProcessed: results.length, totalErrors: errors.length };
+    return {
+      results,
+      errors,
+      totalProcessed: results.length,
+      totalErrors: errors.length,
+    };
   }
 
   /**
@@ -182,8 +211,8 @@ class InventoryService extends BaseService {
   async getLowStockItems(storeId) {
     return await Inventory.find({
       storeId,
-      $expr: { $lte: ['$quantity', '$reorderPoint'] }
-    }).populate('productId');
+      $expr: { $lte: ["$quantity", "$reorderPoint"] },
+    }).populate("productId");
   }
 
   /**
@@ -195,28 +224,30 @@ class InventoryService extends BaseService {
       {
         $group: {
           _id: null,
-          totalItems: { $sum: '$quantity' },
-          totalReserved: { $sum: '$reservedQuantity' },
+          totalItems: { $sum: "$quantity" },
+          totalReserved: { $sum: "$reservedQuantity" },
           lowStockCount: {
             $sum: {
-              $cond: [{ $lte: ['$quantity', '$reorderPoint'] }, 1, 0]
-            }
+              $cond: [{ $lte: ["$quantity", "$reorderPoint"] }, 1, 0],
+            },
           },
           outOfStockCount: {
             $sum: {
-              $cond: [{ $eq: ['$quantity', 0] }, 1, 0]
-            }
-          }
-        }
-      }
+              $cond: [{ $eq: ["$quantity", 0] }, 1, 0],
+            },
+          },
+        },
+      },
     ]);
 
-    return stats[0] || {
-      totalItems: 0,
-      totalReserved: 0,
-      lowStockCount: 0,
-      outOfStockCount: 0
-    };
+    return (
+      stats[0] || {
+        totalItems: 0,
+        totalReserved: 0,
+        lowStockCount: 0,
+        outOfStockCount: 0,
+      }
+    );
   }
 
   /**
@@ -230,49 +261,106 @@ class InventoryService extends BaseService {
       outOfStock,
       search,
       category,
-      sortBy = 'quantity',
-      sortOrder = 'asc'
+      sortBy = "quantity",
+      sortOrder = "asc",
+      storeId: requestedStoreId,
     } = query;
 
-    const storeId = user.role === 'SUPER_ADMIN' ? query.storeId : user.storeId;
+    const filter = {};
 
-    const filter = { storeId };
-
-    if (lowStock === 'true') {
-      filter.$expr = { $lte: ['$quantity', '$reorderPoint'] };
+    // Store restriction
+    if (user.role !== "SUPER_ADMIN") {
+      filter.storeId = user.storeId._id || user.storeId;
+    } else if (requestedStoreId) {
+      filter.storeId = requestedStoreId;
     }
-    if (outOfStock === 'true') {
+
+    if (lowStock === "true") {
+      filter.$expr = {
+        $lte: ["$quantity", "$reorderPoint"],
+      };
+    }
+
+    if (outOfStock === "true") {
       filter.quantity = 0;
     }
 
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
-    let inventoryQuery = Inventory.find(filter)
-      .populate({
-        path: 'productId',
-        match: { isActive: true },
-        populate: { path: 'storeId', select: 'name code' }
-      })
-      .sort({ [sortBy]: sortOrder === 'asc' ? 1 : -1 })
-      .skip(skip)
-      .limit(parseInt(limit));
+    const populateOptions = {
+      path: "productId",
+      match: {
+        isActive: true,
+      },
+      populate: {
+        path: "storeId",
+        select: "name code",
+      },
+    };
 
-    let inventory = await inventoryQuery;
-    inventory = inventory.filter(item => item.productId !== null);
-
+    // Add search/category directly into populate match
     if (search) {
-      inventory = inventory.filter(item =>
-        item.productId.name.toLowerCase().includes(search.toLowerCase()) ||
-        item.productId.sku.toLowerCase().includes(search.toLowerCase())
-      );
+      populateOptions.match.$or = [
+        { name: { $regex: search, $options: "i" } },
+        { sku: { $regex: search, $options: "i" } },
+      ];
     }
 
     if (category) {
-      inventory = inventory.filter(item => item.productId.category === category);
+      populateOptions.match.category = category;
     }
 
-    const total = await Inventory.countDocuments(filter);
-    const stats = await this.getInventorySummary(storeId);
+    let inventory = await Inventory.find(filter)
+      .populate(populateOptions)
+      .sort({
+        [sortBy]: sortOrder === "asc" ? 1 : -1,
+      })
+      .skip(skip)
+      .limit(parseInt(limit));
+
+    // Remove inventory whose product didn't match populate conditions
+    inventory = inventory.filter((item) => item.productId);
+
+    // Correct total after filters
+    const total = await Inventory.countDocuments({
+      ...filter,
+      productId: {
+        $in: inventory.map((i) => i.productId._id),
+      },
+    });
+
+    let stats;
+
+    if (user.role === "SUPER_ADMIN" && !requestedStoreId) {
+      const result = await Inventory.aggregate([
+        {
+          $group: {
+            _id: null,
+            totalItems: { $sum: "$quantity" },
+            totalReserved: { $sum: "$reservedQuantity" },
+            lowStockCount: {
+              $sum: {
+                $cond: [{ $lte: ["$quantity", "$reorderPoint"] }, 1, 0],
+              },
+            },
+            outOfStockCount: {
+              $sum: {
+                $cond: [{ $eq: ["$quantity", 0] }, 1, 0],
+              },
+            },
+          },
+        },
+      ]);
+
+      stats = result[0] || {
+        totalItems: 0,
+        totalReserved: 0,
+        lowStockCount: 0,
+        outOfStockCount: 0,
+      };
+    } else {
+      stats = await this.getInventorySummary(filter.storeId);
+    }
 
     return {
       inventory,
@@ -281,30 +369,32 @@ class InventoryService extends BaseService {
         page: parseInt(page),
         limit: parseInt(limit),
         total,
-        pages: Math.ceil(total / parseInt(limit))
-      }
+        pages: Math.ceil(total / parseInt(limit)),
+      },
     };
   }
 
   async getInventoryByProduct(productId, storeId) {
     if (!productId) {
-      throw new AppError('Product ID is required', 400);
+      throw new AppError("Product ID is required", 400);
     }
 
     // Find inventory for this product and store
-    let inventory = await Inventory.findOne({ 
-      productId, 
-      storeId 
+    let inventory = await Inventory.findOne({
+      productId,
+      storeId,
     }).populate({
-      path: 'productId',
-      select: 'name sku category unitPrice costPrice minStockLevel maxStockLevel'
+      path: "productId",
+      select:
+        "name sku category unitPrice costPrice minStockLevel maxStockLevel",
     });
 
     // If no inventory found, create one
     if (!inventory) {
-      const product = await Product.findById(productId).select('name sku unitPrice');
+      const product =
+        await Product.findById(productId).select("name sku unitPrice");
       if (!product) {
-        throw new AppError('Product not found', 404);
+        throw new AppError("Product not found", 404);
       }
 
       // Create initial inventory record
@@ -318,18 +408,23 @@ class InventoryService extends BaseService {
         maxStockLevel: 100,
         lastCounted: new Date(),
         movements: [],
-        auditLog: []
+        auditLog: [],
       });
 
       // Populate product details
       inventory = await Inventory.findById(inventory._id).populate({
-        path: 'productId',
-        select: 'name sku category unitPrice costPrice minStockLevel maxStockLevel'
+        path: "productId",
+        select:
+          "name sku category unitPrice costPrice minStockLevel maxStockLevel",
       });
     }
 
     // Get recent movements (last 50)
-    const recentMovements = await this.getRecentMovements(productId, storeId, 50);
+    const recentMovements = await this.getRecentMovements(
+      productId,
+      storeId,
+      50,
+    );
 
     // Get audit log (last 20)
     const auditLog = await AuditLog(productId, storeId, 20);
@@ -344,14 +439,14 @@ class InventoryService extends BaseService {
       minStockLevel: inventory.minStockLevel || 5,
       maxStockLevel: inventory.maxStockLevel || 100,
       warehouseLocation: inventory.warehouseLocation || {
-        aisle: '',
-        shelf: '',
-        bin: ''
+        aisle: "",
+        shelf: "",
+        bin: "",
       },
       lastCounted: inventory.lastCounted || null,
       movements: recentMovements,
       auditLog: auditLog,
-      product: inventory.productId
+      product: inventory.productId,
     };
   }
 
@@ -364,17 +459,17 @@ class InventoryService extends BaseService {
       // For now, we'll return sample data or empty array
       // You can implement this based on your schema
       const movements = [];
-      
+
       // If you have a Movement model, you would query it here:
       // const Movement = require('../models/Movement');
       // const movements = await Movement.find({ productId, storeId })
       //   .sort({ timestamp: -1 })
       //   .limit(limit)
       //   .populate('actorId', 'firstName lastName');
-      
+
       return movements;
     } catch (error) {
-      console.error('Error fetching movements:', error);
+      console.error("Error fetching movements:", error);
       return [];
     }
   }

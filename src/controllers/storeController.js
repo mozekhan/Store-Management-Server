@@ -132,7 +132,8 @@ exports.getStoreStats = async (req, res) => {
     // Check access
     await StoreService.validateStoreAccess(id, req.user);
     
-    const stats = await StoreService.getStoreStats(id);
+    // const stats = await StoreService.getStoreStats(id);
+    const stats = await StoreService.getStoreStats(id, req.user);
 
     res.json({
       success: true,
